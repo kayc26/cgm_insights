@@ -9,6 +9,7 @@ data/processed/
 
 # Ignore virtual environment
 venv/
+venv311/
 
 # Ignore OS-specific files
 .DS_Store
