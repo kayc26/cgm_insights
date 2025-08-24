@@ -1,1 +1,1 @@
-["net_carbs","carbs","fiber","fat","protein","sugar","kcal","sin_hour","cos_hour","dow","hr_mean_30m","active_kcal_60m","steps_60m","walk_run_dist_60m","rest_hr_daily","exercise_min_60m","flights_60m"]
+["fiber_per_100kcal","carbs_per_100kcal","sugar_frac_carb","protein_per_100kcal","fiber_to_carb","prev_meal_kcal","carb_to_protein"]
