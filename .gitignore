@@ -1,15 +1,11 @@
-# Ignore raw data
-data/raw/
-
-# Ignore processed data (optional if you don't want to share tokenized outputs)
-data/processed/
+# Ignore data
+data
 
 # Ignore Jupyter notebook checkpoints
 .ipynb_checkpoints/
 
-# Ignore virtual environment
-venv/
-venv311/
+# Ignore archives
+archives
 
 # Ignore OS-specific files
 .DS_Store
