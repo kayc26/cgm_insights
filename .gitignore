@@ -1,11 +1,11 @@
 # Ignore data
-data
+data/
 
 # Ignore Jupyter notebook checkpoints
 .ipynb_checkpoints/
 
 # Ignore archives
-archives
+archives/
 
 # Ignore OS-specific files
 .DS_Store
