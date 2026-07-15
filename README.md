@@ -1,12 +1,24 @@
 # CGM Insights
 
-A personal (N=1) analysis that turns two weeks of continuous glucose monitor (CGM)
-data plus a food journal into **personalized recommendations for flattening
-post-meal glucose spikes**.
+**A personal CGM advisor: it predicts how a meal will spike my glucose, then tells
+me the one change that would flatten it — before I eat, not after.**
 
-> **Value prop:** for health-conscious people who wear a CGM and want more stable
-> glucose, this is a digital advisor trained on an individual's own diet and glucose
-> data that suggests concrete, meal-specific changes to reduce post-meal spikes.
+![Anatomy of a post-meal glucose spike](docs/figures/glucose_response_anatomy.png)
+
+Built on my own data: two 14-day windows of Lingo CGM readings + a hand-logged
+food journal, 87 meals total.
+
+- **89.7% of meals actionable** — the engine gated 9/87 as "no spike predicted"
+  and recommended a specific change on the other 78 (GI-swap won 61, veg-side 17)
+- **Honest effect sizes** — mean predicted peak reduction −2.59 mg/dL from the
+  winning lever (GI-swap −3.19), larger on high-GI meals, reported without spin
+- **Decision quality over model complexity** — every choice, including the
+  rejected alternatives, is logged in [DECISIONS.md](DECISIONS.md)
+
+📄 **[Read the full case study →](CASE_STUDY.md)** — problem, key decisions,
+results, limitations, and what a beyond-N=1 v2 looks like.
+
+---
 
 The append-only [DECISIONS.md](DECISIONS.md) is the authoritative record of *why*
 each modeling choice was made (including rejected alternatives). This README
