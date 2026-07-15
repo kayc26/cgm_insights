@@ -17,16 +17,20 @@ below: what got decided, what the alternative was, and what it actually moved.
 The target user is a health-conscious CGM wearer — the fast-growing segment using
 devices like Lingo, Stelo, or Libre outside of a diabetes diagnosis, purely for
 metabolic health. Most apps in this category score or summarize a meal after it's
-eaten; a few — Levels, January AI, Signos — offer some form of forward-looking or
-swap-style guidance. None that I could verify fit a model to one person's own
-glucose-response data and simulate a specific change to a specific meal with a
-predicted mg/dL effect. That narrower gap is the one this project targets: a
-digital advisor trained on an individual's own diet and glucose data, surfacing
-one concrete, meal-specific change instead of a generic tip like "eat less sugar."
+eaten. Several go further: January AI predicts a food's glucose impact before you
+eat and suggests swaps, Levels compares two logged meals, Signos learns which
+foods spike a given user. So forward-looking, swap-style guidance isn't what sets
+this project apart — the established products already ship versions of it, generally
+from cohort models whose personalization method isn't published. The gap this
+project targets is narrower and about method: fit the model on one person's own
+glucose-response data, make the recommendation legible — a predicted mg/dL delta
+for a specific change to the specific meal in front of you — and stay silent when
+the model isn't confident. That's a deliberate trade of cohort-scale accuracy for
+transparency and own-data personalization, not a capability the category lacks.
 
 ## Competitive landscape
 
-| Product | What it offers | Gap vs. this project |
+| Product | What it offers | How this project differs |
 |---|---|---|
 | Levels | Compares two already-logged meals side by side; generic swap tips (protein/fat/fiber first) | Retrospective comparison, not a simulated counterfactual on an upcoming meal; tips aren't fit to a personal model |
 | January AI | Predicts a food's glucose impact pre-meal, personalizes after ~5 days of CGM + food logging; suggests food swaps | Personalization method is unpublished — possibly cohort-calibrated rather than fit on one person's data |
