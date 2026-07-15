@@ -1,0 +1,95 @@
+# CGM Insights
+
+A personal (N=1) analysis that turns two weeks of continuous glucose monitor (CGM)
+data plus a food journal into **personalized recommendations for flattening
+post-meal glucose spikes**.
+
+> **Value prop:** for health-conscious people who wear a CGM and want more stable
+> glucose, this is a digital advisor trained on an individual's own diet and glucose
+> data that suggests concrete, meal-specific changes to reduce post-meal spikes.
+
+The append-only [DECISIONS.md](DECISIONS.md) is the authoritative record of *why*
+each modeling choice was made (including rejected alternatives). This README
+describes *what* the pipeline currently does; where the two disagree, DECISIONS.md wins.
+
+## Data
+
+1. **Glucose** — two 14-day windows of raw CGM data (Lingo).
+2. **Diet** — manual food journal (Bevel) + hand-labeled carb source per meal
+   (rice / bread / potato / …) for glycemic-index (GI) mapping.
+3. **Movement** — step counts, active energy, and heart rate (Apple Watch).
+4. All of the above are exported together from Apple Health (`data/export.xml`).
+
+Two 14-day windows (`window` 1 and 2) are used as independent train/test splits —
+see [DECISIONS.md](DECISIONS.md) for exact dates.
+
+## Pipeline — [src/parse_health.ipynb](src/parse_health.ipynb)
+
+Apple Health `export.xml` → cleaned `data/meal_dataset.parquet` (one row per meal).
+
+1. Parse the Health XML into a long record table.
+2. Filter to the two windows and to the relevant sources (Lingo, Bevel, Apple Watch).
+3. **Dedup the Bevel double-logging bug** — near-duplicate detection (same record
+   type, <10 min apart, <10% value difference) across *all* macro fields, manually
+   confirmed. See DECISIONS.md; this materially changed the baseline R².
+4. Aggregate food entries within 15 minutes into a single meal (~87 meals total).
+5. **Glucose features** over a 2 h response window per meal: `baseline_glucose`
+   (mean of the 15 min pre-meal), `peak_rise` (max rise above baseline), and
+   `iauc` (incremental area under the curve, trapezoid on the baseline-clipped rise).
+6. **Activity features**: pre/post-meal steps, active energy, and heart rate.
+7. **GI enrichment**: merge the manually curated carb source per meal against a
+   published GI lookup table.
+
+## Model — [src/model.ipynb](src/model.ipynb)
+
+- **Linear regression**, chosen deliberately over tree models so the recommendation
+  engine can perturb inputs and read smooth, interpretable coefficient responses.
+- **Targets**: `peak_rise` and `iauc`.
+- **Final feature set**: `GI`, `DietaryCarbohydrates`, `DietaryFatTotal`,
+  `DietaryFiber`, `DietaryProtein`, `pre_steps`.
+  - GI and carbs are kept as **separate** features (not combined into a single
+    `glycemic_load` scalar) so the two levers below stay independently controllable.
+  - Post-meal activity features were **dropped** — a self-selection confound (walking
+    after meals expected to spike) gave them a backwards sign. Details in DECISIONS.md.
+- **Validation**: cross-window (train window 1 → test window 2, and vice versa),
+  not just k-fold CV — the honest generalization test for N=1 data.
+
+## Recommendation engine
+
+For each meal, if the model predicts a spike (gated at a predicted peak of
+≥100 mg/dL, using Lingo's own published no-spike threshold), it simulates
+**two proportional levers** and returns whichever lowers the predicted peak most:
+
+1. **Swap to a lower-GI carb source** — `GI ×= 0.6`, only offered when `GI > 30`
+   (no point "swapping" a food that's already low-GI).
+2. **Add a side of low-carb vegetables** — `DietaryFiber += 3`, `DietaryCarbohydrates
+   += 4` (paired, since no real food adds fiber with zero carbs).
+
+Perturbations are proportional/relative to each meal's actual composition rather
+than flat deltas. Levers considered and rejected (eat-fiber-first ordering, portion
+reduction, flat-magnitude perturbations) are documented in DECISIONS.md.
+
+## Limitations (v1)
+
+- Small training data (~87 meals, single person).
+- Food nutrition and GI values are approximate (manual journaling + published GI tables).
+- Magnitude calibration uses fixed percentage assumptions, not per-food-realistic swaps.
+- Meal-level granularity only — no within-meal item ordering or portion modeling.
+- Walking/activity excluded as a lever due to the unresolved self-selection confound.
+
+See [DECISIONS.md](DECISIONS.md) for the full limitations discussion and the paths
+explored but not pursued (transfer learning, binary spike classifier, time-of-day
+features, tree models).
+
+## Setup
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install jupyterlab
+jupyter lab
+```
+
+Run [src/parse_health.ipynb](src/parse_health.ipynb) first (builds
+`data/meal_dataset.parquet`), then [src/model.ipynb](src/model.ipynb).

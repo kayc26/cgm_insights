@@ -4,6 +4,9 @@ data/
 # Ignore Jupyter notebook checkpoints
 .ipynb_checkpoints/
 
+# Ignore virtual environments
+venv/
+
 # Ignore archives
 archives/
 
