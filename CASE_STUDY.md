@@ -16,10 +16,26 @@ below: what got decided, what the alternative was, and what it actually moved.
 
 The target user is a health-conscious CGM wearer — the fast-growing segment using
 devices like Lingo, Stelo, or Libre outside of a diabetes diagnosis, purely for
-metabolic health. Every app in this category answers "what happened." None of them
-answer "what should I do differently, for *this* meal." That's the gap: a digital
-advisor trained on an individual's own diet and glucose data, surfacing one
-concrete, meal-specific change instead of a generic tip like "eat less sugar."
+metabolic health. Most apps in this category score or summarize a meal after it's
+eaten; a few — Levels, January AI, Signos — offer some form of forward-looking or
+swap-style guidance. None that I could verify fit a model to one person's own
+glucose-response data and simulate a specific change to a specific meal with a
+predicted mg/dL effect. That narrower gap is the one this project targets: a
+digital advisor trained on an individual's own diet and glucose data, surfacing
+one concrete, meal-specific change instead of a generic tip like "eat less sugar."
+
+## Competitive landscape
+
+| Product | What it offers | Gap vs. this project |
+|---|---|---|
+| Levels | Compares two already-logged meals side by side; generic swap tips (protein/fat/fiber first) | Retrospective comparison, not a simulated counterfactual on an upcoming meal; tips aren't fit to a personal model |
+| January AI | Predicts a food's glucose impact pre-meal, personalizes after ~5 days of CGM + food logging; suggests food swaps | Personalization method is unpublished — possibly cohort-calibrated rather than fit on one person's data |
+| Signos | Learns which foods spike a given user; recommends what to eat next | Ranks food choices going forward, not a modeled delta for changing the specific meal in front of the user |
+| Veri | Scores logged meals from glucose response + a population "Food Quality" label | Its own copy calls the dietary guidance "generalized"; no per-meal simulated swap with a predicted number |
+| Abbott Lingo | Weekly reports built on five general behavioral principles | Retrospective and reactive by design; no pre-meal, per-meal simulation |
+
+*Capabilities surveyed July 2026; these products ship updates frequently and may
+have changed since.*
 
 ## What I built
 
