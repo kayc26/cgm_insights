@@ -10,8 +10,8 @@ food journal, 87 meals total.
 
 - **89.7% of meals actionable** — the engine gated 9/87 as "no spike predicted"
   and recommended a specific change on the other 78 (GI-swap won 61, veg-side 17)
-- **Honest effect sizes** — mean predicted peak reduction −2.59 mg/dL from the
-  winning lever (GI-swap −3.19), larger on high-GI meals, reported without spin
+- **Small but real effect sizes** — mean predicted peak reduction −2.59 mg/dL
+  from the winning lever (GI-swap −3.19), larger on high-GI meals
 - **Decision quality over model complexity** — every choice, including the
   rejected alternatives, is logged in [DECISIONS.md](DECISIONS.md)
 

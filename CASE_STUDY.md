@@ -102,25 +102,22 @@ the highest-risk meal in the dataset predicted at 171.6 mg/dL.
 
 ![Recommendation impact — predicted peak vs. predicted reduction per meal](docs/figures/recommendation_impact.png)
 
-The headline number: the mean predicted reduction from the winning lever is
-**−2.59 mg/dL** (GI swap −3.19, vegetable side −0.44). That's modest — this is
-not a system that flattens spikes. The mean also understates what matters most:
-reduction isn't evenly distributed — high-GI meals see larger swings,
-already-modest meals see almost nothing (correctly, since there's less to fix
-there). I'd rather report the unglamorous mean and explain the spread than lead
-with a cherry-picked best case.
+The mean predicted reduction from the winning lever is **−2.59 mg/dL** (GI swap
+−3.19, vegetable side −0.44). That's modest — this is not a system that flattens
+spikes. The mean also hides the spread: the reduction isn't evenly distributed.
+High-GI meals see the larger swings; already-modest meals see almost nothing,
+which is what should happen — there's less to fix there.
 
 ![Lever summary — win counts and mean predicted-peak deltas by lever](docs/figures/lever_summary.png)
 
-The cross-window validation tells a related story about where the model is and
-isn't trustworthy. Training on window 1 and testing on window 2 gives R² of
-−0.015 (peak_rise) and 0.023 (iauc) — barely better than predicting the mean.
-Training on window 2 and testing on window 1 gives 0.178 and 0.224 — real, if
-modest, signal. That asymmetry is itself a finding, not symmetric noise — it
-held across every feature-set variant tested. The leading hypothesis (in
-`DECISIONS.md`) is that window 2 has a wider, noisier behavioral range that
-happens to generalize forward better than window 1's narrower range generalizes
-backward.
+Cross-window validation shows where the model is and isn't trustworthy. Training
+on window 1 and testing on window 2 gives R² of −0.015 (peak_rise) and 0.023
+(iauc) — barely better than predicting the mean. The reverse, train on window 2
+and test on window 1, gives 0.178 and 0.224 — modest but real. The asymmetry held
+across every feature-set variant tested, so it looks like a property of the data,
+not noise. The leading hypothesis (in `DECISIONS.md`) is that window 2 has a
+wider, noisier behavioral range that generalizes forward better than window 1's
+narrower range generalizes backward.
 
 ## Limitations
 
@@ -150,10 +147,9 @@ this personal model would have undercut the N=1 framing), then blend toward a
 personalized fit as each user logs meals — the same cold-start pattern
 recommendation systems use elsewhere.
 
-**Turn the walking confound into a designed experiment.** This is the most
-interesting unresolved thread in the project. In this data, walking after meals
-is confounded with the decision to walk — I only walk after meals I expect to
-spike, so the correlational effect runs backwards. A cohort product can fix this
+**Turn the walking confound into a designed experiment.** In this data, walking
+after meals is confounded with the decision to walk — I only walk after meals I
+expect to spike, so the correlational effect runs backwards. A cohort product can fix this
 the way a field experimenter would: randomize walk/no-walk assignment across
 meal types for a subset of users ("for the next two weeks, we'll randomly tell
 you whether to take a short walk after eating"), recover the real causal effect
