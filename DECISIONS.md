@@ -4,7 +4,7 @@ Append-only. Two lines per entry: what I decided, why.
 
 Timeframe: 
 window2: 2026/3/25 - 2026/4/8
-window1: 2026/7/28 - 2026/8/11
+window1: 2025/7/28 - 2025/8/11
 
 ## Data integrity: Bevel double-logging bug
 
@@ -19,9 +19,10 @@ the original number was not representative of the actual data.
 
 ## Feature architecture: GI × carbs split (replaces glycemic_load scalar)
 
-Built glycemic_load (GI × carbs / 100) per plan, via manual carb-source curation
-(44 distinct foods across 90 meals, photo-reviewed in Bevel, GI mapped from
-published values, single reference standard used throughout).
+Built glycemic_load (GI × carbs / 100) per plan, via carb-source curation
+(44 distinct foods across 90 meals, hand-identified by photo-review in Bevel;
+GI then assigned by an LLM against published values — see the LLM labeling
+entry below for the correction of this entry's original wording).
 
 Tested GL as combined scalar vs. GI and carbs as separate features. Separate
 features won on every metric (cross-window R², both targets, both directions).
@@ -115,6 +116,36 @@ Recommendations suppressed below 100 mg/dL predicted peak.
   produce discontinuous, less-interpretable perturbation responses (step
   functions vs. smooth coefficient-driven response), directly working against
   the perturbability constraint. Not tried; linear kept for v1.
+
+## LLM labeling: automate photo→carb-source, not GI lookup
+
+Record correction first: the "Feature architecture" entry above originally
+said "GI mapped from published values." In fact the GI values were assigned
+by an LLM during curation (prompted against published table values); the
+hand-done step was identifying each meal's carb source from its Bevel photo.
+The distinction matters for what to automate.
+
+Chose the automation target accordingly: a vision classifier for
+photo→carb-source (src/carb_source_labeler.py), NOT an LLM GI estimator.
+Reasons:
+- The 87 hand-identified carb sources are genuine ground truth; the GI
+  column is itself LLM output, so a GI-estimation eval would measure
+  LLM-vs-LLM agreement, not accuracy. (Built one anyway before realizing
+  this — MAE 2.4 pts, 5/87 recommendation flips — kept only as an
+  agreement/consistency check, not an accuracy claim.)
+- Text-based labeling is structurally impossible: Apple Health's export
+  carries macros plus an opaque BevelFoodLogId — no food names, no photos.
+  The photos must be exported from the Bevel app (data/photos/<meal_id>.jpg);
+  labeling is blocked on that export.
+
+Eval design: decision impact over raw accuracy. Primary metric is the
+recommendation flip rate — rerun the engine (model retrained on predicted
+labels' GI) and count meals whose output changes — since a label error only
+matters if it changes what the user is told. Classification accuracy and
+per-confidence error rate are diagnostic; the confidence flag is the basis
+for an auto-accept / human-review routing rule. Predicted labels map to GI
+through the existing food→GI table (classification against a fixed
+vocabulary, no free-form GI generation).
 
 ## Known v1 limitations (stated, not hidden)
 

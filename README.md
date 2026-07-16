@@ -27,8 +27,9 @@ describes *what* the pipeline currently does; where the two disagree, DECISIONS.
 ## Data
 
 1. **Glucose** — two 14-day windows of raw CGM data (Lingo).
-2. **Diet** — manual food journal (Bevel) + hand-labeled carb source per meal
-   (rice / bread / potato / …) for glycemic-index (GI) mapping.
+2. **Diet** — manual food journal (Bevel); the carb source per meal
+   (rice / bread / potato / …) was hand-identified from Bevel photos, and its
+   glycemic index (GI) then assigned by an LLM against published table values.
 3. **Movement** — step counts, active energy, and heart rate (Apple Watch).
 4. All of the above are exported together from Apple Health (`data/export.xml`).
 
@@ -49,8 +50,8 @@ Apple Health `export.xml` → cleaned `data/meal_dataset.parquet` (one row per m
    (mean of the 15 min pre-meal), `peak_rise` (max rise above baseline), and
    `iauc` (incremental area under the curve, trapezoid on the baseline-clipped rise).
 6. **Activity features**: pre/post-meal steps, active energy, and heart rate.
-7. **GI enrichment**: merge the manually curated carb source per meal against a
-   published GI lookup table.
+7. **GI enrichment**: merge the hand-identified carb source per meal with its
+   LLM-assigned GI value.
 
 ## Model — [src/model.ipynb](src/model.ipynb)
 
@@ -81,10 +82,35 @@ Perturbations are proportional/relative to each meal's actual composition rather
 than flat deltas. Levers considered and rejected (eat-fiber-first ordering, portion
 reduction, flat-magnitude perturbations) are documented in DECISIONS.md.
 
+## LLM labeling — [src/carb_source_labeler.py](src/carb_source_labeler.py)
+
+The one step of the pipeline that is pure manual labor — and therefore can't
+scale past N=1 — is identifying each meal's carb source from its Bevel photo.
+`carb_source_labeler.py` automates it with a vision model: photo → one label
+from the dataset's 44-food vocabulary (+ `other`), with a self-reported
+confidence flag. GI is **not** re-estimated; the predicted label maps to GI
+through the same food→GI table the pipeline already uses, so label errors
+propagate to recommendations exactly as they would in production.
+
+The 87 hand labels double as the ground-truth eval set. Metrics, in order of
+importance:
+
+1. **Recommendation flip rate** — meals where the engine's output changes
+   under the predicted label. A misclassification only matters if it changes
+   what the user is told.
+2. **Classification accuracy** — raw label quality, for diagnosis.
+3. **Error rate by confidence flag** — the basis for a routing rule
+   (auto-accept high-confidence labels, send low-confidence ones to review).
+
+Status: awaiting the photo export (`data/photos/<meal_id>.jpg`). The photos
+live only in the Bevel app — Apple Health's export carries macros and an
+opaque `BevelFoodLogId`, no food names or images.
+
 ## Limitations (v1)
 
 - Small training data (~87 meals, single person).
-- Food nutrition and GI values are approximate (manual journaling + published GI tables).
+- Food nutrition and GI values are approximate (manual journaling; GI assigned
+  by an LLM against published table values, not independently verified).
 - Magnitude calibration uses fixed percentage assumptions, not per-food-realistic swaps.
 - Meal-level granularity only — no within-meal item ordering or portion modeling.
 - Walking/activity excluded as a lever due to the unresolved self-selection confound.
