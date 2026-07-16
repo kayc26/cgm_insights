@@ -102,9 +102,15 @@ importance:
 3. **Error rate by confidence flag** — the basis for a routing rule
    (auto-accept high-confidence labels, send low-confidence ones to review).
 
-Status: awaiting the photo export (`data/photos/<meal_id>.jpg`). The photos
-live only in the Bevel app — Apple Health's export carries macros and an
-opaque `BevelFoodLogId`, no food names or images.
+Because a meal aggregates food entries logged within 15 minutes, one meal can
+have several photos of different foods — the classifier receives all of a
+meal's photos in one call and labels the meal as a whole.
+
+Status: awaiting the photo export. The photos live in iPhone Photos (Apple
+Health's export carries macros and an opaque `BevelFoodLogId` — no food names
+or images). Workflow: export originals for the two study windows into
+`data/photos_raw/`, then run [src/match_photos.py](src/match_photos.py) to
+timestamp-match them into `data/photos/<meal_id>_<k>.jpg`.
 
 ## Limitations (v1)
 

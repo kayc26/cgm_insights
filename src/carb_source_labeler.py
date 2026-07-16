@@ -17,8 +17,12 @@ Eval metrics, in order of importance:
   3. confidence calibration — error rate of "low" vs "high" confidence
                  labels, the basis for a human-review routing rule.
 
-Setup: export each meal's photo from Bevel as data/photos/<meal_id>.jpg
-(or .png). Then:
+Setup: export the study windows' photos from iPhone Photos into
+data/photos_raw/ and run src/match_photos.py — it timestamp-matches them
+into data/photos/<meal_id>_<k>.jpg. A meal aggregates food entries logged
+within 15 minutes, so one meal may have several photos of different foods;
+all of a meal's photos go to the classifier in a single call and are judged
+as one meal. Then:
 
   python src/carb_source_labeler.py --label   # classify photos via API
   python src/carb_source_labeler.py           # eval data/llm_carb_labels.csv
@@ -41,7 +45,9 @@ PHOTOS = Path("data/photos")
 # disqualifies) it against a flagship model on this exact task.
 MODEL = "claude-haiku-4-5"
 
-PROMPT = """Identify the dominant carbohydrate source in this meal photo.
+PROMPT = """The photo(s) above show the foods logged as ONE meal (entries
+within a 15-minute window). Identify the dominant carbohydrate source of the
+meal as a whole.
 
 Answer with exactly one label from this vocabulary (these are the categories
 used throughout the dataset):
@@ -49,7 +55,7 @@ used throughout the dataset):
 {vocab}
 
 Rules:
-- Pick the single food contributing the most carbohydrate to the meal.
+- Pick the single food contributing the most carbohydrate across all photos.
 - If no vocabulary label fits, use "other".
 - confidence: "high" if the carb source is clearly visible, "medium" if
   partially obscured or inferred, "low" if you are mostly guessing.
@@ -61,26 +67,32 @@ def label_photos(vocab: list[str]) -> pd.DataFrame:
     import anthropic
 
     client = anthropic.Anthropic()
-    rows = []
+
+    by_meal: dict[int, list[Path]] = {}
     for photo in sorted(PHOTOS.glob("*.[jp][pn]g")):
-        meal_id = int(photo.stem)
-        media_type = "image/png" if photo.suffix == ".png" else "image/jpeg"
+        meal_id = int(photo.stem.split("_")[0])
+        by_meal.setdefault(meal_id, []).append(photo)
+
+    rows = []
+    for meal_id, photos in sorted(by_meal.items()):
+        image_blocks = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/png" if p.suffix == ".png" else "image/jpeg",
+                    "data": base64.standard_b64encode(p.read_bytes()).decode(),
+                },
+            }
+            for p in photos
+        ]
         response = client.messages.create(
             model=MODEL,
             max_tokens=256,
             messages=[{
                 "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": base64.standard_b64encode(photo.read_bytes()).decode(),
-                        },
-                    },
-                    {"type": "text", "text": PROMPT.format(vocab="\n".join(vocab))},
-                ],
+                "content": image_blocks
+                + [{"type": "text", "text": PROMPT.format(vocab="\n".join(vocab))}],
             }],
             output_config={
                 "format": {
@@ -98,11 +110,12 @@ def label_photos(vocab: list[str]) -> pd.DataFrame:
             },
         )
         if response.stop_reason == "refusal":
-            sys.exit(f"model refused on {photo.name}")
+            sys.exit(f"model refused on meal {meal_id}")
         result = json.loads(response.content[0].text)
         rows.append({"meal_id": meal_id, "llm_carb_source": result["carb_source"],
                      "confidence": result["confidence"]})
-        print(f"meal {meal_id:3d}  {result['carb_source']:30s} ({result['confidence']})")
+        print(f"meal {meal_id:3d} ({len(photos)} photo{'s' if len(photos) > 1 else ''})  "
+              f"{result['carb_source']:30s} ({result['confidence']})")
     return pd.DataFrame(rows)
 
 
@@ -179,7 +192,8 @@ if __name__ == "__main__":
     meals = pd.read_parquet(MEALS)
     if args.parse_args().label:
         if not PHOTOS.exists() or not any(PHOTOS.iterdir()):
-            sys.exit(f"no photos found — export Bevel photos to {PHOTOS}/<meal_id>.jpg first")
+            sys.exit(f"no photos in {PHOTOS}/ — export originals to data/photos_raw/ "
+                     "and run src/match_photos.py first")
         label_photos(sorted(meals["carb_source"].unique())).to_csv(LABELS, index=False)
         print(f"\nwrote {LABELS}")
     evaluate(meals, pd.read_csv(LABELS))
