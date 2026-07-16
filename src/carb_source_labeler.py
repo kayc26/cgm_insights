@@ -24,8 +24,16 @@ within 15 minutes, so one meal may have several photos of different foods;
 all of a meal's photos go to the classifier in a single call and are judged
 as one meal. Then:
 
-  python src/carb_source_labeler.py --label   # classify photos via API
-  python src/carb_source_labeler.py           # eval data/llm_carb_labels.csv
+  python src/carb_source_labeler.py --label         # classify photos via API
+  python src/carb_source_labeler.py                 # eval data/llm_carb_labels.csv
+
+Human-in-the-loop correction (the product loop — auto-recognition proposes,
+the user confirms or fixes; disagreements are often dominant-carb judgment
+calls rather than vision errors, so the shipped metric is correction burden,
+not raw accuracy):
+
+  python src/carb_source_labeler.py --make-review   # review sheet (xlsx, dropdown)
+  python src/carb_source_labeler.py --apply-review  # merge -> final labels CSV
 """
 
 import argparse
@@ -39,6 +47,8 @@ from sklearn.linear_model import LinearRegression
 
 MEALS = "data/meal_dataset.parquet"
 LABELS = "data/llm_carb_labels.csv"
+REVIEW = "data/review_carb_labels.xlsx"
+FINAL = "data/final_carb_labels.csv"
 PHOTOS = Path("data/photos")
 
 # Cheapest vision-capable tier; the flip-rate eval is what qualifies (or
@@ -186,14 +196,90 @@ def evaluate(meals: pd.DataFrame, labels: pd.DataFrame) -> None:
         print(report.to_string(index=False))
 
 
+def make_review(meals: pd.DataFrame) -> None:
+    """Write the correction sheet: one row per photo-matched meal, the model's
+    proposal prefilled in final_carb_source, a dropdown to fix it. The user
+    only edits rows the model got wrong — that's the whole product loop."""
+    import openpyxl
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
+
+    labels = pd.read_csv(LABELS)
+    vocab = sorted(meals["carb_source"].unique()) + ["other"]
+    with_photos = sorted({int(p.stem.split("_")[0]) for p in PHOTOS.glob("*.jpg")})
+
+    sheet = meals[meals["meal_id"].isin(with_photos)][["meal_id", "meal_start"]].copy()
+    sheet["meal_start"] = sheet["meal_start"].dt.tz_localize(None)  # Excel can't store tz
+    sheet["photos"] = sheet["meal_id"].map(
+        lambda mid: ", ".join(sorted(p.name for p in PHOTOS.glob(f"{mid}_*.jpg")))
+    )
+    sheet = sheet.merge(labels, on="meal_id", how="left")
+    sheet["final_carb_source"] = sheet["llm_carb_source"]  # prefill; edit only the wrong ones
+    sheet.to_excel(REVIEW, index=False)
+
+    # dropdown on final_carb_source so corrections can't introduce typos
+    wb = openpyxl.load_workbook(REVIEW)
+    ws = wb.active
+    vs = wb.create_sheet("vocab")
+    for i, v in enumerate(vocab, start=1):
+        vs.cell(row=i, column=1, value=v)
+    vs.sheet_state = "hidden"
+    dv = DataValidation(type="list", formula1=f"=vocab!$A$1:$A${len(vocab)}", allow_blank=True)
+    ws.add_data_validation(dv)
+    final_col = get_column_letter(sheet.columns.get_loc("final_carb_source") + 1)
+    dv.add(f"{final_col}2:{final_col}{ws.max_row}")
+    wb.save(REVIEW)
+
+    pending = sheet["llm_carb_source"].isna().sum()
+    print(f"wrote {REVIEW}: {len(sheet)} meals, {len(sheet) - pending} prefilled, "
+          f"{pending} awaiting a prediction (run --label)")
+
+
+def apply_review(meals: pd.DataFrame) -> None:
+    """Merge the reviewed sheet into final labels and report the product
+    metric: how much human correction the auto-labels actually needed."""
+    sheet = pd.read_excel(REVIEW)
+    sheet["final_carb_source"] = sheet["final_carb_source"].astype("string").str.strip()
+    done = sheet[sheet["final_carb_source"].notna() & (sheet["final_carb_source"] != "")].copy()
+
+    vocab = set(meals["carb_source"].unique()) | {"other"}
+    bad = done[~done["final_carb_source"].isin(vocab)]
+    if len(bad):
+        sys.exit(f"labels outside the vocabulary (typo?): "
+                 f"{bad[['meal_id', 'final_carb_source']].to_dict('records')}")
+
+    auto = done["final_carb_source"] == done["llm_carb_source"]
+    manual = done["llm_carb_source"].isna()
+    corrected = ~auto & ~manual
+    print(f"reviewed               {len(done)}/{len(sheet)} meals")
+    print(f"auto-label accepted    {auto.sum()} ({auto.mean():.0%})")
+    print(f"corrected              {corrected.sum()}")
+    print(f"entered from scratch   {manual.sum()} (no prediction yet)")
+    if corrected.any():
+        print("\ncorrections by model confidence:")
+        print(done[corrected].groupby("confidence").size().to_string())
+
+    out = done[["meal_id", "final_carb_source"]].rename(columns={"final_carb_source": "carb_source"})
+    out.to_csv(FINAL, index=False)
+    print(f"\nwrote {FINAL}")
+
+
 if __name__ == "__main__":
-    args = argparse.ArgumentParser()
-    args.add_argument("--label", action="store_true", help="classify photos via the API")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--label", action="store_true", help="classify photos via the API")
+    parser.add_argument("--make-review", action="store_true", help="write the manual-correction sheet")
+    parser.add_argument("--apply-review", action="store_true", help="merge reviewed sheet into final labels")
+    args = parser.parse_args()
     meals = pd.read_parquet(MEALS)
-    if args.parse_args().label:
+    if args.label:
         if not PHOTOS.exists() or not any(PHOTOS.iterdir()):
             sys.exit(f"no photos in {PHOTOS}/ — export originals to data/photos_raw/ "
                      "and run src/match_photos.py first")
         label_photos(sorted(meals["carb_source"].unique())).to_csv(LABELS, index=False)
         print(f"\nwrote {LABELS}")
-    evaluate(meals, pd.read_csv(LABELS))
+    if args.make_review:
+        make_review(meals)
+    elif args.apply_review:
+        apply_review(meals)
+    else:
+        evaluate(meals, pd.read_csv(LABELS))
