@@ -106,11 +106,31 @@ Because a meal aggregates food entries logged within 15 minutes, one meal can
 have several photos of different foods — the classifier receives all of a
 meal's photos in one call and labels the meal as a whole.
 
-Status: awaiting the photo export. The photos live in iPhone Photos (Apple
-Health's export carries macros and an opaque `BevelFoodLogId` — no food names
-or images). Workflow: export originals for the two study windows into
-`data/photos_raw/`, then run [src/match_photos.py](src/match_photos.py) to
-timestamp-match them into `data/photos/<meal_id>_<k>.jpg`.
+Reviewing the label disagreements showed most are **dominant-carb judgment
+calls, not vision errors** (a Perfect Bar's main carb *is* honey; yogurt
+under chia seeds photographs like coffee) — plus an irreducible ambiguity
+when a meal aggregates a food that was never photographed. So the shipped
+design is a **human-in-the-loop correction loop** rather than a chase for
+raw accuracy:
+
+1. `--label` — the model proposes a carb source per meal, with confidence
+2. `--make-review` — writes `data/review_carb_labels.xlsx`: one row per meal,
+   proposal prefilled, dropdown-constrained correction column
+3. the user edits only the rows the model got wrong
+4. `--apply-review` — merges into `data/final_carb_labels.csv` and reports the
+   product metric: **correction burden** (auto-accepted vs corrected, broken
+   down by the model's own confidence flag)
+
+`parse_health.ipynb` consumes `final_carb_labels.csv` when building the meal
+dataset: reviewed labels win, meals that never went through review (e.g. no
+photo) fall back to the hand label in `add_carb_source_edited.xlsx`, which
+stays frozen as the ground truth the labeler's eval is scored against.
+
+Photo workflow: the photos live in iPhone Photos (Apple Health's export
+carries macros and an opaque `BevelFoodLogId` — no food names or images).
+Export originals for the two study windows into `data/photos_raw/`, then run
+[src/match_photos.py](src/match_photos.py) to timestamp-match them into
+`data/photos/<meal_id>_<k>.jpg`.
 
 ## Limitations (v1)
 

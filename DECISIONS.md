@@ -147,6 +147,31 @@ for an auto-accept / human-review routing rule. Predicted labels map to GI
 through the existing food→GI table (classification against a fixed
 vocabulary, no free-form GI generation).
 
+## Carb-source labeler: correction loop over accuracy chase
+
+Ran the photo classifier against the hand labels (31-meal in-session pass:
+21/31 agree, 0 recommendation flips). Manually reviewed all 10 disagreements
+and found they fall into three buckets, none of which "more model accuracy"
+fixes:
+- Dominant-carb judgment calls where both labels are defensible (Perfect
+  Bar → "honey" [its main carb] vs "protein bar"; dates-flavored yogurt →
+  "dates" vs "yogurt"; muesli in milk → "milk" vs "oats").
+- Aggregation artifacts: the meal row bundles a food that has no photo
+  (rice dish + unphotographed apple → photo can only ever say "rice").
+  Structural — the pixels don't exist.
+- Genuine vision misses (yogurt under chia seeds read as coffee; rice
+  noodles hidden under sauce). The minority.
+
+Decision: ship auto-recognition + manual correction (--make-review /
+--apply-review: proposal prefilled in an xlsx with a dropdown-constrained
+correction column, merged into final labels). Success metric changes from
+classification accuracy to CORRECTION BURDEN — how many labels a user must
+touch — reported per the model's own confidence flag, which is also the
+empirical test of a confidence-based auto-accept threshold. Rationale: the
+recommendation engine was already insensitive to most label noise (0 flips),
+and the disagreement review showed the residual errors need adjudication,
+not modeling.
+
 ## Known v1 limitations (stated, not hidden)
 
 - Magnitude calibration uses fixed percentage assumptions (40% GI reduction,
