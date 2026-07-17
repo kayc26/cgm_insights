@@ -51,8 +51,9 @@ a long record table, filtered to the two study windows, de-duplicated a
 data-integrity bug I found in the food log (more below), and aggregated food
 entries within a 15-minute window into single meals — 87 in total. For each meal I
 computed `baseline_glucose`, `peak_rise`, and `iauc` (incremental area under the
-curve) over a 2-hour post-meal window, and enriched each meal with a manually
-curated glycemic index (GI) for its carb source.
+curve) over a 2-hour post-meal window, and enriched each meal with a glycemic
+index: I hand-identified each meal's carb source from its photo, and an LLM
+assigned each source a GI against published table values.
 
 ![Glucose response anatomy — what peak_rise and iauc measure on a real post-meal glucose trace](docs/figures/glucose_response_anatomy.png)
 
@@ -88,6 +89,7 @@ including the rejected alternatives. This table is the distillation.
 | **Linear regression over tree-based models** | Random forest / gradient boosting | Trees would likely fit the training data better, but their perturbation response is a step function, not smooth — directly working against a recommendation engine whose job is ranking small, realistic meal changes. Not even tried for v1; the perturbability requirement made the call before the modeling did. |
 | **Found and fixed a duplicate-logging bug** in the food-tracking data | Exact-match deduplication | Bevel was double-logging entries across every macro field independently, with small differences between true duplicates (re-parsing/rounding) that broke exact-match dedup. Built near-duplicate detection (same record type, <10 min apart, <10% value difference) plus manual confirmation. Not cosmetic: the macros-only baseline R² moved from −0.34 (corrupted) to −0.07 (real) — a materially different starting point for every decision downstream. |
 | **Caught an mmol/L vs. mg/dL unit bug** in the spike gate | — | `meal_dataset` stores glucose in mmol/L; the spike/no-spike gate compares against Lingo's published mg/dL threshold. An unconverted comparison would have silently gated meals on the wrong scale. Fixed with an explicit ×18.0182 conversion before thresholding. |
+| **Correction loop over accuracy chase** for the photo→carb-source labeler | Iterating on prompts and models to push classification accuracy higher | Hand-reviewing all ten label disagreements showed mostly dominant-carb judgment calls and meals bundling unphotographed foods — not fixable vision errors — and none changed a recommendation. Shipped auto-label + confirm-or-correct instead; the success metric becomes correction burden, not accuracy. |
 
 ## Results
 
@@ -108,6 +110,19 @@ spikes. The mean also hides the spread: the reduction isn't evenly distributed.
 High-GI meals see the larger swings; already-modest meals see almost nothing,
 which is what should happen — there's less to fix there.
 
+There's a harder version of "modest" worth stating plainly. Consumer CGM
+sensors run at roughly 9% MARD — about ±10 mg/dL at the glucose levels in this
+data — and **no meal's predicted reduction clears that band**: the largest in
+the dataset is 5.5 mg/dL. Per meal, these recommendations are not observable
+above sensor noise, and the assumption-calibrated levers cap them there — a
+GI ×0.6 swap moves this model a few mg/dL at most. Two consequences. First,
+the honest per-meal claim is directional ("this change should lower your
+peak"), not numeric — a reason to show the user the *direction and rank* of a
+recommendation rather than a number the sensor could never confirm. Second,
+the effect is only verifiable in aggregate — the same change repeated across
+weeks of meals — which is exactly why v2's success metric is time-in-range
+rather than per-meal deltas.
+
 ![Lever summary — win counts and mean predicted-peak deltas by lever](docs/figures/lever_summary.png)
 
 Cross-window validation shows where the model is and isn't trustworthy. Training
@@ -119,11 +134,59 @@ not noise. The leading hypothesis (in `DECISIONS.md`) is that window 2 has a
 wider, noisier behavioral range that generalizes forward better than window 1's
 narrower range generalizes backward.
 
+## Automating the one manual step: photo → carb source
+
+Everything in the pipeline is scripted except one step: identifying each
+meal's carb source, which I did by looking at meal photos. That's the step
+that cannot scale past N=1 — and it turned out to be structurally awkward to
+automate, because Apple Health's export carries only macros and an opaque
+`BevelFoodLogId` per entry. No food names, no images. The photos had to come
+from my phone's photo library, timestamp-matched to meals by capture time
+([src/match_photos.py](src/match_photos.py)); since one "meal" aggregates
+entries logged within 15 minutes, a meal can have several photos of different
+foods, and all of them go to the model together.
+
+The labeler ([src/carb_source_labeler.py](src/carb_source_labeler.py)) sends
+a meal's photos to a vision model in one call and gets back one label from
+the dataset's 44-food vocabulary plus a self-reported confidence. GI is *not*
+re-estimated — the label maps through the same food→GI table the pipeline
+already uses, so label errors propagate to recommendations exactly as they
+would in production. The 87 hand labels double as the ground-truth eval set,
+and the eval's primary metric is not accuracy but **recommendation flip
+rate**: retrain on the predicted labels, re-run the engine, and count meals
+whose recommendation changes — because a label error only matters if it
+changes what the user is told.
+
+On a 31-meal demonstration pass, 21 labels agreed with mine — and **zero
+recommendations flipped**. Reviewing all ten disagreements by hand changed
+how I read that accuracy number. They fall into three buckets: dominant-carb
+judgment calls where both labels are defensible (a Perfect Bar's main carb
+genuinely is honey); aggregation artifacts, where the meal bundles a food
+that was never photographed (a rice dish logged alongside an unphotographed
+apple — the photo can only ever say "rice"); and a minority of true vision
+misses (yogurt under chia seeds photographs like coffee). More model accuracy
+fixes only the third bucket.
+
+So the shipped design isn't a more accurate model — it's a correction loop.
+The model proposes; the user confirms or fixes in a review sheet whose
+correction column is dropdown-constrained to the vocabulary; the merged
+result feeds the dataset build, while the original hand labels stay frozen as
+the eval's ground truth. The metric that matters becomes **correction
+burden** — how many labels a human must touch — reported against the model's
+own confidence flag, which doubles as the empirical test for auto-accepting
+high-confidence labels. (The demonstration labels were produced interactively
+by a frontier model; the script itself targets the cheapest vision tier, and
+the flip-rate eval is what turns that model choice from a guess into a
+measurable decision.)
+
 ## Limitations
 
 - **Lever magnitudes are assumption-calibrated, not food-realistic.** A GI swap
   is modeled as GI ×0.6 and a vegetable side as +3g fiber / +4g carbs — fixed
   percentages, not the actual delta of swapping white rice for basmati.
+- **GI values are LLM-assigned, not reference values.** Carb sources were
+  hand-identified from meal photos; each source's GI was assigned by an LLM
+  against published table values, not independently verified.
 - **No item-level or sequencing detail.** `meal_dataset` is one row per meal; the
   model can't represent "eat the vegetables first" or "skip the rice, keep the
   chicken," only whole-meal changes.
