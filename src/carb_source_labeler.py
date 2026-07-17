@@ -27,6 +27,10 @@ as one meal. Then:
   python src/carb_source_labeler.py --label         # classify photos via API
   python src/carb_source_labeler.py                 # eval data/llm_carb_labels.csv
 
+NOTE: data/llm_carb_labels.csv holds the recorded labeling pass that the
+numbers in CASE_STUDY.md and DECISIONS.md are quoted from. Running --label
+OVERWRITES it and the eval numbers will change with the model.
+
 Human-in-the-loop correction (the product loop — auto-recognition proposes,
 the user confirms or fixes; disagreements are often dominant-carb judgment
 calls rather than vision errors, so the shipped metric is correction burden,

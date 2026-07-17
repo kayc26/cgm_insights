@@ -157,8 +157,8 @@ rate**: retrain on the predicted labels, re-run the engine, and count meals
 whose recommendation changes — because a label error only matters if it
 changes what the user is told.
 
-On a 31-meal demonstration pass, 21 labels agreed with mine — and **zero
-recommendations flipped**. Reviewing all ten disagreements by hand changed
+On the recorded 31-meal labeling pass, 21 labels agreed with mine — and
+**zero recommendations flipped**. Reviewing all ten disagreements by hand changed
 how I read that accuracy number. They fall into three buckets: dominant-carb
 judgment calls where both labels are defensible (a Perfect Bar's main carb
 genuinely is honey); aggregation artifacts, where the meal bundles a food
@@ -174,10 +174,10 @@ result feeds the dataset build, while the original hand labels stay frozen as
 the eval's ground truth. The metric that matters becomes **correction
 burden** — how many labels a human must touch — reported against the model's
 own confidence flag, which doubles as the empirical test for auto-accepting
-high-confidence labels. (The demonstration labels were produced interactively
-by a frontier model; the script itself targets the cheapest vision tier, and
-the flip-rate eval is what turns that model choice from a guess into a
-measurable decision.)
+high-confidence labels. (The recorded labels were produced interactively by a
+frontier model; the script itself targets the cheapest vision tier, and the
+flip-rate eval is what turns that model choice from a guess into a measurable
+decision.)
 
 ## Limitations
 

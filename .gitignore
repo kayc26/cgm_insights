@@ -1,5 +1,9 @@
-# Ignore data
-data/
+# Ignore data (data/* not data/, so the negations below can re-include files)
+data/*
+# ...except the recorded labeler artifacts (meal_id + food label only — no
+# personal data): these back the numbers quoted in CASE_STUDY.md
+!data/llm_carb_labels.csv
+!data/final_carb_labels.csv
 
 # Ignore Jupyter notebook checkpoints
 .ipynb_checkpoints/

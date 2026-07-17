@@ -1,0 +1,32 @@
+meal_id,llm_carb_source,confidence
+1,oats,high
+4,milk,high
+5,rice,high
+38,yogurt,high
+41,puff pastry,medium
+42,biscotti,high
+44,sauce,low
+46,mixed non-starchy vegetables,medium
+48,rice,medium
+49,protein bar,high
+50,apple,high
+52,bagel,high
+54,lentil,high
+56,berries,medium
+57,bread,high
+60,other,low
+63,rice,high
+65,lentil,high
+68,protein bar,high
+69,fried chicken,high
+71,dates,high
+74,rice,medium
+76,other,low
+81,other,low
+82,bread,high
+86,rice,medium
+87,pear,high
+88,oats,medium
+89,crispbread,medium
+90,potato,high
+91,yogurt,high

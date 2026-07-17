@@ -172,6 +172,11 @@ recommendation engine was already insensitive to most label noise (0 flips),
 and the disagreement review showed the residual errors need adjudication,
 not modeling.
 
+The recorded pass (labels produced interactively by a frontier vision model,
+committed as data/llm_carb_labels.csv) stands as the v1 labeler result — no
+API re-run planned. Re-running --label overwrites the record and re-scores
+the eval under whatever model the script then targets.
+
 ## Known v1 limitations (stated, not hidden)
 
 - Magnitude calibration uses fixed percentage assumptions (40% GI reduction,
